@@ -12,6 +12,8 @@ var log            = debug("wsavc");
 var WSAvcPlayer = new Class({
   Implements : [Events],
 
+  framesList: [],
+  running: false,
 
   initialize : function(canvas, canvastype) {
 
@@ -56,65 +58,66 @@ var WSAvcPlayer = new Class({
   },
 
   connect : function(url) {
-
     // Websocket initialization
+    var ws = new WebSocket(url);
+    ws.binaryType = "arraybuffer";
+
+    ws.onopen = () => {
+      log("Connected to " + url);
+    };
+
+    this.playFromWebSocket(ws);
+  },
+
+  playFromWebSocket: function(ws) {
     if (this.ws != undefined) {
       this.ws.close();
       delete this.ws;
     }
-    this.ws = new WebSocket(url);
-    this.ws.binaryType = "arraybuffer";
-
-    this.ws.onopen = () => {
-      log("Connected to " + url);
-    };
-
-
-    var framesList = [];
+    this.ws = ws;
 
     this.ws.onmessage = (evt) => {
       if(typeof evt.data == "string")
         return this.cmd(JSON.parse(evt.data));
 
-      this.pktnum++;
       var frame = new Uint8Array(evt.data);
       //log("[Pkt " + this.pktnum + " (" + evt.data.byteLength + " bytes)]");
       //this.decode(frame);
-      framesList.push(frame);
+      this.addFrame(frame);
     };
 
-
-    var running = true;
-
-    var shiftFrame = function() {
-      if(!running)
-        return;
-
-
-      if(framesList.length > 10) {
-        log("Dropping frames", framesList.length);
-        framesList = [];
-      }
-
-      var frame = framesList.shift();
-
-
-      if(frame)
-        this.decode(frame);
-
-      requestAnimationFrame(shiftFrame);
-    }.bind(this);
-
-
-    shiftFrame();
-
-
-
     this.ws.onclose = () => {
-      running = false;
+      this.running = false;
       log("WSAvcPlayer: Connection closed")
     };
 
+  },
+
+  addFrame: function(frame) {
+    this.pktnum++;
+    this.framesList.push(frame);
+    if (!this.running) {
+      this.running = true;
+      this.shiftFrame();
+    }
+  },
+
+  shiftFrame: function() {
+    if(!this.running)
+      return;
+
+
+    if(this.framesList.length > 3) {
+      log("Dropping frames", this.framesList.length);
+      this.framesList = [];
+    }
+
+    var frame = this.framesList.shift();
+
+    if(frame)
+      this.decode(frame);
+
+    requestAnimationFrame(() => this.shiftFrame());
   },
 
   initCanvas : function(width, height) {

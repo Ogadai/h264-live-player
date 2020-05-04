@@ -4,9 +4,8 @@
   </head>
   <body>
 
-    <button type="button" onclick="wsavc.playStream()">Start Video</button>
-    <button type="button" onclick="wsavc.stopStream()">Stop Video</button>
-    <button type="button" onclick="wsavc.disconnect()">Disconnect</button>
+    <button type="button" onclick="startVideo()">Start Video</button>
+    <button type="button" onclick="stopVideo()">Stop Video</button>
     <br/>
 
   <!-- provide WSAvcPlayer -->
@@ -16,11 +15,58 @@
 var canvas = document.createElement("canvas");
 document.body.appendChild(canvas);
 
+const webSocket = new WebSocket(`ws://lego:8080`, 'echo-protocol');
+//const webSocket = new WebSocket(`ws://localhost:8080`, 'echo-protocol');
+//const webSocket = new WebSocket(`ws://localhost:8090`);
+webSocket.binaryType = "arraybuffer";
+
+webSocket.onopen = () => {
+    console.log('socket is connected')
+}
+
+function send(msg) {
+    try {
+        webSocket.send(JSON.stringify(msg));
+    } catch (error) {
+        console.log(error);
+    }
+}
+
+function startVideo() {
+//  wsavc.playStream()
+//  webSocket.send('REQUESTSTREAM ');
+  send({
+        name: 'camera',
+        state: 'on'
+    });
+}
+
+function stopVideo() {
+  //wsavc.stopStream()
+//  webSocket.send('STOPSTREAM ');
+  send({
+        name: 'camera',
+        state: 'off'
+    });
+}
+
 // Create h264 player
 var uri = "ws://" + document.location.host;
 var wsavc = new WSAvcPlayer(canvas, "webgl", 1, 35);
-wsavc.connect(uri);
+//wsavc.playFromWebSocket(webSocket);
+//wsavc.connect(uri);
+wsavc.initCanvas(960, 540);
+//wsavc.initCanvas(600, 400);
 
+webSocket.onmessage = (evt) => {
+  if(typeof evt.data == "string")
+    return;
+
+  var frame = new Uint8Array(evt.data);
+  //log("[Pkt " + this.pktnum + " (" + evt.data.byteLength + " bytes)]");
+  //this.decode(frame);
+  wsavc.addFrame(frame);
+};
 
 //expose instance for button callbacks
 window.wsavc = wsavc;
