@@ -106,10 +106,12 @@ var WSAvcPlayer = new Class({
     if(!this.running)
       return;
 
-
-    if(this.framesList.length > 3) {
-      log("Dropping frames", this.framesList.length);
-      this.framesList = [];
+    if(this.framesList.length > 1) {
+      const nalu = this.getNALU(this.framesList[this.framesList.length -1])
+      if (nalu.unit_type === 5) {
+        console.log("Dropping frames", this.framesList.length - 1);
+        this.framesList.splice(this.framesList.length -1);
+      }
     }
 
     var frame = this.framesList.shift();
@@ -118,6 +120,17 @@ var WSAvcPlayer = new Class({
       this.decode(frame);
 
     requestAnimationFrame(() => this.shiftFrame());
+  },
+  
+  getNALU(data) {
+    if (data.length > 4) {
+        const nalu = data[4]
+        return {
+            ref_idc: (nalu & 98) >> 5,
+            unit_type: (nalu & 31)
+        }
+    }
+    return {}
   },
 
   initCanvas : function(width, height) {
